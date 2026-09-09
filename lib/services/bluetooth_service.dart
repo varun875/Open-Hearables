@@ -91,19 +91,36 @@ class BluetoothService extends ChangeNotifier {
       _scanSub = FlutterBluePlus.scanResults.listen((results) {
         for (final r in results) {
           final mfg = r.advertisementData.manufacturerData;
-          final List<int>? raw = mfg[mfgBluetrum] ?? mfg[mfgJieli];
+          int? leftPct, rightPct, casePct;
+          bool isLeftChg = false, isRightChg = false, isCaseChg = false;
 
-          // Unpack 13-byte DeviceBeaconV1 payload (per decompiled DeviceBeaconV1.smali)
-          if (raw != null && raw.length >= 10) {
-            final isLeftChg = (raw[7] & 0x80) != 0;
-            final leftPct = raw[7] & 0x7F;
+          // 1. Check JieLi Beacon (0x05D6 / 1494): Format per NotifyAdvInfoParam.smali
+          final jieliRaw = mfg[mfgJieli];
+          if (jieliRaw != null && jieliRaw.length >= 17) {
+            isLeftChg = (jieliRaw[14] & 0x80) != 0;
+            leftPct = jieliRaw[14] & 0x7F;
 
-            final isRightChg = (raw[8] & 0x80) != 0;
-            final rightPct = raw[8] & 0x7F;
+            isRightChg = (jieliRaw[15] & 0x80) != 0;
+            rightPct = jieliRaw[15] & 0x7F;
 
-            final isCaseChg = (raw[9] & 0x80) != 0;
-            final casePct = raw[9] & 0x7F;
+            isCaseChg = (jieliRaw[16] & 0x80) != 0;
+            casePct = jieliRaw[16] & 0x7F;
+          }
 
+          // 2. Check Bluetrum Beacon (0x0642 / 1602): Format per DeviceBeaconV1.smali
+          final bluetrumRaw = mfg[mfgBluetrum];
+          if (bluetrumRaw != null && bluetrumRaw.length >= 10) {
+            isLeftChg = (bluetrumRaw[7] & 0x80) != 0;
+            leftPct = bluetrumRaw[7] & 0x7F;
+
+            isRightChg = (bluetrumRaw[8] & 0x80) != 0;
+            rightPct = bluetrumRaw[8] & 0x7F;
+
+            isCaseChg = (bluetrumRaw[9] & 0x80) != 0;
+            casePct = bluetrumRaw[9] & 0x7F;
+          }
+
+          if (leftPct != null && rightPct != null) {
             final devName = r.device.platformName.isNotEmpty
                 ? r.device.platformName
                 : (r.advertisementData.advName.isNotEmpty
@@ -115,7 +132,7 @@ class BluetoothService extends ChangeNotifier {
               macAddress: r.device.remoteId.str,
               leftBattery: leftPct.clamp(0, 100),
               rightBattery: rightPct.clamp(0, 100),
-              caseBattery: casePct.clamp(0, 100),
+              caseBattery: (casePct != null && casePct >= 0) ? casePct.clamp(0, 100) : _deviceState.caseBattery,
               isLeftCharging: isLeftChg,
               isRightCharging: isRightChg,
               isCaseCharging: isCaseChg,
