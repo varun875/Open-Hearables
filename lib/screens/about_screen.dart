@@ -5,35 +5,54 @@ class AboutScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('About Open Hearables'),
+        title: Text(
+          'Privacy & Architecture',
+          style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+        ),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Privacy Card
-          Card(
-            color: Colors.green.withAlpha(25),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            child: const Padding(
-              padding: EdgeInsets.all(16),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          children: [
+            // 1. Privacy Banner (Tonal Container)
+            Container(
+              decoration: BoxDecoration(
+                color: colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              padding: const EdgeInsets.all(18),
               child: Row(
                 children: [
-                  Icon(Icons.shield, color: Colors.green, size: 36),
-                  SizedBox(width: 16),
+                  Icon(
+                    Icons.security_outlined,
+                    color: colorScheme.onPrimaryContainer,
+                    size: 32,
+                  ),
+                  const SizedBox(width: 16),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           '100% Offline & Private',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          style: textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.onPrimaryContainer,
+                          ),
                         ),
-                        SizedBox(height: 4),
+                        const SizedBox(height: 4),
                         Text(
-                          'Zero analytics, zero tracking tokens (CleverTap/Meta), zero cloud login. No telemetry leaves your phone.',
-                          style: TextStyle(fontSize: 13),
+                          'Zero cloud login, zero telemetry tokens (CleverTap/Meta), and zero internet permissions. All audio processing runs locally on your device.',
+                          style: textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onPrimaryContainer.withValues(alpha: 0.85),
+                            height: 1.4,
+                          ),
                         ),
                       ],
                     ),
@@ -41,111 +60,154 @@ class AboutScreen extends StatelessWidget {
                 ],
               ),
             ),
-          ),
 
-          const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
-          // Features List Card
-          Card(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'How It Beats boAt Hearables',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildComparisonRow(
-                    'App Footprint',
-                    '<5 MB clean Flutter APK',
-                    '144 MB bloatware',
-                  ),
-                  const Divider(),
-                  _buildComparisonRow(
-                    'Equalizer (EQ)',
-                    'Universal System DSP (Works on 311 Plus)',
-                    'Software whitelist locked',
-                  ),
-                  const Divider(),
-                  _buildComparisonRow(
-                    'Login Required',
-                    'Zero login (Instant local launch)',
-                    'Forced OTP & cloud login',
-                  ),
-                  const Divider(),
-                  _buildComparisonRow(
-                    'Permissions',
-                    'Only Bluetooth & Audio DSP',
-                    'READ_CALL_LOG, Contacts, etc.',
-                  ),
-                ],
+            // 2. Feature Comparison Surface
+            Container(
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainer,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: colorScheme.outlineVariant),
               ),
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // Technical Specs
-          Card(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            child: const Padding(
-              padding: EdgeInsets.all(16),
+              padding: const EdgeInsets.all(18),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Technical Details',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    'Feature Comparison',
+                    style: textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
+                    ),
                   ),
-                  SizedBox(height: 8),
-                  Text(
-                    '• Protocol: Clean JieLi RCSP (0xBA, 0xDC) frame implementation\n'
-                    '• DSP Engine: Android AudioEffect Session 0 Pipeline\n'
-                    '• Battery: Bluetooth SIG GATT Service (0x180F)\n'
-                    '• License: Open Source (Clean-room implementation)',
-                    style: TextStyle(fontSize: 13, height: 1.5),
+                  const SizedBox(height: 14),
+                  _buildComparisonItem(
+                    context,
+                    title: 'Binary Footprint',
+                    openValue: '13.3 MB (split APK, zero bloat)',
+                    proprietaryValue: '144 MB commercial app',
+                  ),
+                  Divider(color: colorScheme.outlineVariant, height: 16),
+                  _buildComparisonItem(
+                    context,
+                    title: 'System Equalizer (DSP)',
+                    openValue: 'Universal Android Session 0 (Works on 311 Plus)',
+                    proprietaryValue: 'Artificial software whitelist block',
+                  ),
+                  Divider(color: colorScheme.outlineVariant, height: 16),
+                  _buildComparisonItem(
+                    context,
+                    title: 'Authentication',
+                    openValue: 'Zero login (Instant offline launch)',
+                    proprietaryValue: 'Mandatory phone OTP & cloud sync',
+                  ),
+                  Divider(color: colorScheme.outlineVariant, height: 16),
+                  _buildComparisonItem(
+                    context,
+                    title: 'Permissions',
+                    openValue: 'Only Bluetooth & Audio DSP',
+                    proprietaryValue: 'READ_CALL_LOG, Contacts, Location, etc.',
                   ),
                 ],
               ),
             ),
-          ),
-        ],
+
+            const SizedBox(height: 16),
+
+            // 3. Technical Specifications Container
+            Container(
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainer,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: colorScheme.outlineVariant),
+              ),
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Technical Architecture',
+                    style: textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    '• Protocol: Clean-room JieLi RCSP (0xBA, 0xDC) frame parsing\n'
+                    '• Audio DSP: Native android.media.audiofx.Equalizer Session 0\n'
+                    '• Telemetry: Completely severed; no background pings\n'
+                    '• Battery: Native Bluetooth SIG GATT Service (UUID 0x180F)\n'
+                    '• License: MIT Open-Source (Community Edition)',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                      height: 1.6,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildComparisonRow(String feature, String openVal, String boatVal) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(feature, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-          const SizedBox(height: 2),
-          Row(
-            children: [
-              const Icon(Icons.check_circle, color: Colors.green, size: 16),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(openVal, style: const TextStyle(fontSize: 13, color: Colors.green)),
-              ),
-            ],
+  Widget _buildComparisonItem(
+    BuildContext context, {
+    required String title,
+    required String openValue,
+    required String proprietaryValue,
+  }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: textTheme.labelLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: colorScheme.onSurface,
           ),
-          const SizedBox(height: 2),
-          Row(
-            children: [
-              const Icon(Icons.cancel, color: Colors.redAccent, size: 16),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(boatVal, style: const TextStyle(fontSize: 12, color: Colors.redAccent)),
+        ),
+        const SizedBox(height: 4),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.check_circle_outline, color: colorScheme.primary, size: 16),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                openValue,
+                style: textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurface,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
-            ],
-          ),
-        ],
-      ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 3),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.cancel_outlined, color: colorScheme.error, size: 16),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                proprietaryValue,
+                style: textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

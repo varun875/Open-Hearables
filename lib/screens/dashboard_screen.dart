@@ -8,32 +8,41 @@ class DashboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
+
     final bt = context.watch<BluetoothService>();
     final eq = context.watch<EqualizerService>();
     final device = bt.deviceState;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'Open Hearables',
-          style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5),
+          style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
+        centerTitle: false,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh Bluetooth',
+            tooltip: 'Refresh connection & battery',
             onPressed: () => bt.checkConnectedDevices(),
           ),
+          const SizedBox(width: 8),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        children: [
-          // Device Status Card
-          Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            child: Padding(
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          children: [
+            // 1. Hero Device Status Surface
+            Container(
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainer,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: colorScheme.outlineVariant, width: 1),
+              ),
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -41,15 +50,16 @@ class DashboardScreen extends StatelessWidget {
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(12),
+                        width: 52,
+                        height: 52,
                         decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.primaryContainer,
+                          color: colorScheme.primaryContainer,
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
                           Icons.headphones,
-                          size: 32,
-                          color: Theme.of(context).colorScheme.onPrimaryContainer,
+                          size: 28,
+                          color: colorScheme.onPrimaryContainer,
                         ),
                       ),
                       const SizedBox(width: 16),
@@ -59,28 +69,31 @@ class DashboardScreen extends StatelessWidget {
                           children: [
                             Text(
                               device.name,
-                              style: const TextStyle(
-                                fontSize: 18,
+                              style: textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.bold,
+                                color: colorScheme.onSurface,
                               ),
                             ),
                             const SizedBox(height: 4),
                             Row(
                               children: [
-                                Container(
-                                  width: 8,
-                                  height: 8,
-                                  decoration: BoxDecoration(
-                                    color: device.isConnected ? Colors.green : Colors.red,
-                                    shape: BoxShape.circle,
-                                  ),
+                                Icon(
+                                  device.isConnected
+                                      ? Icons.check_circle_outline
+                                      : Icons.link_off,
+                                  size: 14,
+                                  color: device.isConnected
+                                      ? colorScheme.primary
+                                      : colorScheme.error,
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
-                                  device.isConnected ? 'Connected & Active' : 'Disconnected',
-                                  style: TextStyle(
-                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                    fontSize: 13,
+                                  device.isConnected
+                                      ? 'Connected • Audio & Controls'
+                                      : 'Disconnected • Ready to Pair',
+                                  style: textTheme.bodySmall?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
                               ],
@@ -90,136 +103,149 @@ class DashboardScreen extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 24),
-                  const Divider(),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
+                  Divider(color: colorScheme.outlineVariant, height: 1),
+                  const SizedBox(height: 20),
+
                   // Battery Triad (Left / Case / Right)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _buildBatteryIndicator(
+                      _buildBatteryTonal(
                         context,
-                        'Left',
-                        device.leftBattery,
-                        Icons.earbuds,
+                        label: 'Left Earbud',
+                        shortLabel: 'Left',
+                        percent: device.leftBattery,
+                        icon: Icons.earbuds,
                       ),
-                      _buildBatteryIndicator(
+                      _buildBatteryTonal(
                         context,
-                        'Case',
-                        device.caseBattery,
-                        Icons.battery_charging_full,
+                        label: 'Charging Case',
+                        shortLabel: 'Case',
+                        percent: device.caseBattery,
+                        icon: Icons.battery_charging_full,
                       ),
-                      _buildBatteryIndicator(
+                      _buildBatteryTonal(
                         context,
-                        'Right',
-                        device.rightBattery,
-                        Icons.earbuds,
+                        label: 'Right Earbud',
+                        shortLabel: 'Right',
+                        percent: device.rightBattery,
+                        icon: Icons.earbuds,
                       ),
                     ],
                   ),
                 ],
               ),
             ),
-          ),
 
-          const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
-          // Beast Mode (Gaming Latency) Card
-          Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: device.isBeastModeActive
-                          ? Colors.orange.withAlpha(50)
-                          : Theme.of(context).colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      Icons.sports_esports,
-                      color: device.isBeastModeActive ? Colors.orange : Colors.grey,
-                      size: 28,
-                    ),
+            // 2. Hardware Beast Mode Switch Container
+            Container(
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainer,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: colorScheme.outlineVariant, width: 1),
+              ),
+              child: SwitchListTile(
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                secondary: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: device.isBeastModeActive
+                        ? colorScheme.tertiaryContainer
+                        : colorScheme.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Beast Mode (Gaming)',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                        ),
-                        Text(
-                          device.isBeastModeActive
-                              ? 'Low-Latency Buffer Active (-48ms)'
-                              : 'Standard Music Buffer (283ms)',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
+                  child: Icon(
+                    Icons.sports_esports,
+                    color: device.isBeastModeActive
+                        ? colorScheme.onTertiaryContainer
+                        : colorScheme.onSurfaceVariant,
+                    size: 24,
                   ),
-                  Switch(
-                    value: device.isBeastModeActive,
-                    onChanged: (val) => bt.toggleBeastMode(),
+                ),
+                title: Text(
+                  'Beast Mode (Low Latency)',
+                  style: textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
                   ),
-                ],
+                ),
+                subtitle: Text(
+                  device.isBeastModeActive
+                      ? 'Hardware buffer reduced (~48ms drop)'
+                      : 'Standard music buffer (283ms)',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                value: device.isBeastModeActive,
+                onChanged: (_) => bt.toggleBeastMode(),
               ),
             ),
-          ),
 
-          const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
-          // Active Sound Profile Card
-          Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            child: Padding(
-              padding: const EdgeInsets.all(18),
+            // 3. Sound Profile Tonal Section
+            Container(
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainer,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: colorScheme.outlineVariant, width: 1),
+              ),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        'Sound Profile (System EQ)',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      Text(
+                        'Active Sound Profile',
+                        style: textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
+                        ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
-                          color: eq.isEnabled ? Colors.green.withAlpha(40) : Colors.grey.withAlpha(40),
+                          color: eq.isEnabled
+                              ? colorScheme.primaryContainer
+                              : colorScheme.surfaceContainerHighest,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
                           eq.isEnabled ? 'DSP ACTIVE' : 'BYPASSED',
-                          style: TextStyle(
-                            color: eq.isEnabled ? Colors.green : Colors.grey,
-                            fontSize: 11,
+                          style: textTheme.labelSmall?.copyWith(
+                            color: eq.isEnabled
+                                ? colorScheme.onPrimaryContainer
+                                : colorScheme.onSurfaceVariant,
                             fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
                           ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
                     children: EqualizerService.presets.keys.map((preset) {
                       final isSelected = eq.currentPreset == preset;
-                      return ChoiceChip(
+                      return FilterChip(
                         label: Text(preset),
                         selected: isSelected,
+                        showCheckmark: isSelected,
                         onSelected: (selected) {
                           if (selected) eq.applyPreset(preset);
                         },
@@ -229,56 +255,76 @@ class DashboardScreen extends StatelessWidget {
                 ],
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildBatteryIndicator(
-    BuildContext context,
-    String label,
-    int percent,
-    IconData icon,
-  ) {
-    Color barColor = Colors.green;
-    if (percent <= 20) {
-      barColor = Colors.red;
-    } else if (percent <= 50) {
-      barColor = Colors.orange;
-    }
+  Widget _buildBatteryTonal(
+    BuildContext context, {
+    required String label,
+    required String shortLabel,
+    required int percent,
+    required IconData icon,
+  }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
 
-    return Column(
-      children: [
-        Stack(
-          alignment: Alignment.center,
-          children: [
-            SizedBox(
-              width: 54,
-              height: 54,
-              child: CircularProgressIndicator(
-                value: percent / 100.0,
-                strokeWidth: 5,
-                backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                valueColor: AlwaysStoppedAnimation<Color>(barColor),
+    final isLow = percent <= 20 && percent >= 0;
+    final progressColor = isLow ? colorScheme.error : colorScheme.primary;
+
+    return Semantics(
+      label: '$label battery level',
+      value: '$percent percent',
+      child: Column(
+        children: [
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              SizedBox(
+                width: 52,
+                height: 52,
+                child: CircularProgressIndicator(
+                  value: percent >= 0 ? (percent / 100.0) : 0.0,
+                  strokeWidth: 4.5,
+                  backgroundColor: colorScheme.surfaceContainerHighest,
+                  valueColor: AlwaysStoppedAnimation<Color>(progressColor),
+                ),
               ),
-            ),
-            Icon(icon, size: 22),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text(
-          '$percent%',
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-        ),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
+              Icon(
+                icon,
+                size: 22,
+                color: isLow ? colorScheme.error : colorScheme.onSurface,
+              ),
+            ],
           ),
-        ),
-      ],
+          const SizedBox(height: 8),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isLow) ...[
+                Icon(Icons.warning_amber_rounded, size: 12, color: colorScheme.error),
+                const SizedBox(width: 2),
+              ],
+              Text(
+                percent >= 0 ? '$percent%' : '--',
+                style: textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: isLow ? colorScheme.error : colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+          Text(
+            shortLabel,
+            style: textTheme.labelSmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

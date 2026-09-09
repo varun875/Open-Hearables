@@ -24,6 +24,9 @@ class OpenHearablesApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // True Material 3 Semantic Color System
+    const seedColor = Color(0xFF006A6A); // Deep Teal / Audio Precision Seed
+
     return MaterialApp(
       title: 'Open Hearables',
       debugShowCheckedModeBanner: false,
@@ -32,32 +35,46 @@ class OpenHearablesApp extends StatelessWidget {
         useMaterial3: true,
         brightness: Brightness.dark,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.cyan,
+          seedColor: seedColor,
           brightness: Brightness.dark,
-          surface: const Color(0xFF121212),
         ),
-        scaffoldBackgroundColor: const Color(0xFF0F0F11),
-        cardTheme: CardThemeData(
-          color: const Color(0xFF1B1B1F),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        // Semantic Token Hierarchy
+        cardTheme: const CardThemeData(
+          elevation: 0,
+          margin: EdgeInsets.zero,
+        ),
+        sliderTheme: const SliderThemeData(
+          trackHeight: 4,
+          thumbShape: RoundSliderThumbShape(enabledThumbRadius: 8),
+          overlayShape: RoundSliderOverlayShape(overlayRadius: 18),
+        ),
+        switchTheme: SwitchThemeData(
+          thumbIcon: WidgetStateProperty.resolveWith<Icon?>((states) {
+            if (states.contains(WidgetState.selected)) {
+              return const Icon(Icons.check, size: 14);
+            }
+            return const Icon(Icons.close, size: 14);
+          }),
         ),
       ),
-      home: const MainNavigationShell(),
+      home: const AdaptiveMainScaffold(),
     );
   }
 }
 
-class MainNavigationShell extends StatefulWidget {
-  const MainNavigationShell({super.key});
+/// Adaptive M3 Scaffold: Switches between NavigationBar (compact)
+/// and NavigationRail (medium/expanded windows).
+class AdaptiveMainScaffold extends StatefulWidget {
+  const AdaptiveMainScaffold({super.key});
 
   @override
-  State<MainNavigationShell> createState() => _MainNavigationShellState();
+  State<AdaptiveMainScaffold> createState() => _AdaptiveMainScaffoldState();
 }
 
-class _MainNavigationShellState extends State<MainNavigationShell> {
-  int _currentIndex = 0;
+class _AdaptiveMainScaffoldState extends State<AdaptiveMainScaffold> {
+  int _selectedIndex = 0;
 
-  final List<Widget> _screens = const [
+  final List<Widget> _destinations = const [
     DashboardScreen(),
     EqualizerScreen(),
     AboutScreen(),
@@ -65,36 +82,91 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (idx) {
-          setState(() {
-            _currentIndex = idx;
-          });
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.headphones_outlined),
-            selectedIcon: Icon(Icons.headphones),
-            label: 'Dashboard',
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 600;
+
+        if (isWide) {
+          // M3 Navigation Rail for Tablets / Foldables / Desktop
+          return Scaffold(
+            body: Row(
+              children: [
+                NavigationRail(
+                  selectedIndex: _selectedIndex,
+                  onDestinationSelected: (idx) => setState(() => _selectedIndex = idx),
+                  labelType: NavigationRailLabelType.all,
+                  leading: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Icon(
+                      Icons.headphones,
+                      color: Theme.of(context).colorScheme.primary,
+                      size: 32,
+                    ),
+                  ),
+                  destinations: const [
+                    NavigationRailDestination(
+                      icon: Icon(Icons.dashboard_outlined),
+                      selectedIcon: Icon(Icons.dashboard),
+                      label: Text('Dashboard'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.equalizer_outlined),
+                      selectedIcon: Icon(Icons.equalizer),
+                      label: Text('Equalizer'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.shield_outlined),
+                      selectedIcon: Icon(Icons.shield),
+                      label: Text('Privacy'),
+                    ),
+                  ],
+                ),
+                const VerticalDivider(thickness: 1, width: 1),
+                Expanded(
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 900),
+                      child: IndexedStack(
+                        index: _selectedIndex,
+                        children: _destinations,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        // M3 Navigation Bar for Mobile Compact
+        return Scaffold(
+          body: IndexedStack(
+            index: _selectedIndex,
+            children: _destinations,
           ),
-          NavigationDestination(
-            icon: Icon(Icons.equalizer_outlined),
-            selectedIcon: Icon(Icons.equalizer),
-            label: 'Equalizer',
+          bottomNavigationBar: NavigationBar(
+            selectedIndex: _selectedIndex,
+            onDestinationSelected: (idx) => setState(() => _selectedIndex = idx),
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.dashboard_outlined),
+                selectedIcon: Icon(Icons.dashboard),
+                label: 'Dashboard',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.equalizer_outlined),
+                selectedIcon: Icon(Icons.equalizer),
+                label: 'Equalizer',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.shield_outlined),
+                selectedIcon: Icon(Icons.shield),
+                label: 'Privacy',
+              ),
+            ],
           ),
-          NavigationDestination(
-            icon: Icon(Icons.info_outline),
-            selectedIcon: Icon(Icons.info),
-            label: 'About',
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
