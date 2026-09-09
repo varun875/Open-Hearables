@@ -72,21 +72,48 @@ class EqualizerScreen extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: SizedBox(
-                height: 40,
+                height: 42,
                 child: ListView(
                   scrollDirection: Axis.horizontal,
-                  children: EqualizerService.presets.keys.map((p) {
-                    final isSelected = eq.currentPreset == p;
-                    return Padding(
+                  children: [
+                    // Built-in Factory Presets
+                    ...EqualizerService.presets.keys.map((p) {
+                      final isSelected = eq.currentPreset == p;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: FilterChip(
+                          label: Text(p),
+                          selected: isSelected,
+                          showCheckmark: isSelected,
+                          onSelected: eq.isEnabled ? (_) => eq.applyPreset(p) : null,
+                        ),
+                      );
+                    }),
+                    // User Custom Presets
+                    ...eq.customPresets.keys.map((p) {
+                      final isSelected = eq.currentPreset == p;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: FilterChip(
+                          avatar: const Icon(Icons.tune, size: 16),
+                          label: Text(p),
+                          selected: isSelected,
+                          showCheckmark: isSelected,
+                          onSelected: eq.isEnabled ? (_) => eq.applyPreset(p) : null,
+                          onDeleted: eq.isEnabled ? () => _confirmDelete(context, eq, p) : null,
+                        ),
+                      );
+                    }),
+                    // Save Current Curve Action Chip
+                    Padding(
                       padding: const EdgeInsets.only(right: 8),
-                      child: FilterChip(
-                        label: Text(p),
-                        selected: isSelected,
-                        showCheckmark: isSelected,
-                        onSelected: eq.isEnabled ? (_) => eq.applyPreset(p) : null,
+                      child: ActionChip(
+                        avatar: const Icon(Icons.add, size: 18),
+                        label: const Text('Save Preset'),
+                        onPressed: eq.isEnabled ? () => _showSaveDialog(context, eq) : null,
                       ),
-                    );
-                  }).toList(),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -221,6 +248,64 @@ class EqualizerScreen extends StatelessWidget {
               fontWeight: FontWeight.w600,
               color: colorScheme.onSurface,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSaveDialog(BuildContext context, EqualizerService eq) {
+    final controller = TextEditingController(text: eq.currentPreset == 'Custom' ? '' : eq.currentPreset);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Save Custom Preset'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'e.g. My Heavy Bass',
+            labelText: 'Preset Name',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final name = controller.text.trim();
+              if (name.isNotEmpty) {
+                eq.saveCustomPreset(name);
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context, EqualizerService eq, String name) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Preset'),
+        content: Text('Are you sure you want to delete "$name"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.tonal(
+            onPressed: () {
+              eq.deleteCustomPreset(name);
+              Navigator.pop(ctx);
+            },
+            child: const Text('Delete'),
           ),
         ],
       ),

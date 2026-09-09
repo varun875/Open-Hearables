@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,11 +11,13 @@ class EqualizerService extends ChangeNotifier {
   double _bassBoost = 0.3; // 0.0 to 1.0
   String _currentPreset = 'Bass Boost';
   List<EqBand> _bands = [];
+  Map<String, List<double>> _customPresets = {};
 
   bool get isEnabled => _isEnabled;
   double get bassBoost => _bassBoost;
   String get currentPreset => _currentPreset;
   List<EqBand> get bands => _bands;
+  Map<String, List<double>> get customPresets => _customPresets;
 
   static const Map<String, List<double>> presets = {
     'Flat': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -98,17 +101,38 @@ class EqualizerService extends ChangeNotifier {
     _savePreferences();
   }
 
-  Future<void> applyPreset(String presetName) async {
-    if (!presets.containsKey(presetName)) return;
-    _currentPreset = presetName;
-    final curve = presets[presetName]!;
+  Future<void> saveCustomPreset(String name) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return;
+    _customPresets[trimmed] = _bands.map((b) => b.levelDb).toList();
+    _currentPreset = trimmed;
+    notifyListeners();
+    await _savePreferences();
+  }
 
+  Future<void> deleteCustomPreset(String name) async {
+    if (_customPresets.containsKey(name)) {
+      _customPresets.remove(name);
+      if (_currentPreset == name) {
+        _currentPreset = 'Custom';
+      }
+      notifyListeners();
+      await _savePreferences();
+    }
+  }
+
+  Future<void> applyPreset(String presetName) async {
+    List<double>? curve = presets[presetName];
+    curve ??= _customPresets[presetName];
+    if (curve == null) return;
+
+    _currentPreset = presetName;
     for (int i = 0; i < _bands.length && i < curve.length; i++) {
       _bands[i].levelDb = curve[i];
     }
     notifyListeners();
     await _syncAllToNative();
-    _savePreferences();
+    await _savePreferences();
   }
 
   Future<void> _syncAllToNative() async {
@@ -132,6 +156,10 @@ class EqualizerService extends ChangeNotifier {
     for (int i = 0; i < _bands.length; i++) {
       await prefs.setDouble('eq_band_$i', _bands[i].levelDb);
     }
+    try {
+      final customJson = jsonEncode(_customPresets);
+      await prefs.setString('eq_custom_presets', customJson);
+    } catch (_) {}
   }
 
   Future<void> _loadPreferences() async {
@@ -139,6 +167,17 @@ class EqualizerService extends ChangeNotifier {
     _isEnabled = prefs.getBool('eq_enabled') ?? true;
     _bassBoost = prefs.getDouble('bass_boost') ?? 0.3;
     _currentPreset = prefs.getString('eq_preset') ?? 'Bass Boost';
+
+    final customJson = prefs.getString('eq_custom_presets');
+    if (customJson != null) {
+      try {
+        final decoded = jsonDecode(customJson) as Map<String, dynamic>;
+        _customPresets = decoded.map((key, val) => MapEntry(
+          key,
+          (val as List).map((e) => (e as num).toDouble()).toList(),
+        ));
+      } catch (_) {}
+    }
 
     for (int i = 0; i < _bands.length; i++) {
       final savedGain = prefs.getDouble('eq_band_$i');

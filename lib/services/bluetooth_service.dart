@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/device_state.dart';
 
 class BluetoothService extends ChangeNotifier {
@@ -20,12 +21,25 @@ class BluetoothService extends ChangeNotifier {
   StreamSubscription? _scanSub;
 
   DeviceState get deviceState => _deviceState;
+  BluetoothDevice? get connectedDevice => _connectedDevice;
   bool get isScanning => _isScanning;
 
   BluetoothService() {
     _initAudioChannel();
     _initBluetooth();
+    _loadPreferences();
     checkConnectedDevices();
+  }
+
+  Future<void> _loadPreferences() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedBeast = prefs.getBool('is_beast_mode') ?? false;
+      if (savedBeast != _deviceState.isBeastModeActive) {
+        _deviceState = _deviceState.copyWith(isBeastModeActive: savedBeast);
+        notifyListeners();
+      }
+    } catch (_) {}
   }
 
   void _initAudioChannel() {
@@ -234,15 +248,25 @@ class BluetoothService extends ChangeNotifier {
     notifyListeners();
 
     try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('is_beast_mode', nextState);
+    } catch (_) {}
+
+    try {
       final packet = await _rcspChannel.invokeMethod<Uint8List>(
         'buildLowLatencyPacket',
         {'enabled': nextState},
       );
-      if (packet != null && _connectedDevice != null) {
-        debugPrint('RCSP Beast Mode packet dispatched: ${packet.length} bytes');
+      if (packet != null) {
+        debugPrint('RCSP Beast Mode packet built: ${packet.length} bytes. Dispatching to hardware...');
+        final dispatched = await _audioChannel.invokeMethod<bool>(
+          'sendRcspPacket',
+          {'packet': packet},
+        );
+        debugPrint('RCSP Beast Mode packet dispatched: $dispatched');
       }
     } catch (e) {
-      debugPrint('RCSP command dispatch: $e');
+      debugPrint('RCSP command dispatch error: $e');
     }
   }
 

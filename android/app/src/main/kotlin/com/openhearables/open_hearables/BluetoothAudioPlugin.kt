@@ -4,9 +4,14 @@ import android.Manifest
 import android.bluetooth.BluetoothA2dp
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothGatt
+import android.bluetooth.BluetoothGattCallback
+import android.bluetooth.BluetoothGattCharacteristic
+import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothHeadset
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
+import android.bluetooth.BluetoothSocket
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -22,6 +27,7 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
+import java.util.UUID
 
 class BluetoothAudioPlugin(
     private val context: Context,
@@ -31,6 +37,11 @@ class BluetoothAudioPlugin(
     companion object {
         const val CHANNEL_NAME = "com.openhearables.app/bluetooth_audio"
         private const val EXTRA_BATTERY_LEVEL = "android.bluetooth.device.extra.BATTERY_LEVEL"
+        val UUID_JIELI_SERVICE: UUID = UUID.fromString("0000ae00-0000-1000-8000-00805f9b34fb")
+        val UUID_JIELI_WRITE: UUID = UUID.fromString("0000ae01-0000-1000-8000-00805f9b34fb")
+        val UUID_JIELI_NOTIFY: UUID = UUID.fromString("0000ae02-0000-1000-8000-00805f9b34fb")
+        val UUID_CCCD: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
+        val UUID_JIELI_SPP: UUID = UUID.fromString("00001101-0000-1000-8000-00805f9b34fb")
     }
 
     private val channel = MethodChannel(messenger, CHANNEL_NAME)
@@ -43,6 +54,10 @@ class BluetoothAudioPlugin(
     private var headsetProfile: BluetoothHeadset? = null
     private val batteryCache = mutableMapOf<String, Int>()
     private var isReceiverRegistered = false
+
+    private var bluetoothGatt: BluetoothGatt? = null
+    private var gattWriteChar: BluetoothGattCharacteristic? = null
+    private var activeDevice: BluetoothDevice? = null
 
     private val bluetoothReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -147,8 +162,155 @@ class BluetoothAudioPlugin(
                     result.error("DEVICE_FETCH_FAILED", e.localizedMessage, null)
                 }
             }
+            "sendRcspPacket" -> {
+                val packet = call.argument<ByteArray>("packet")
+                if (packet == null || packet.isEmpty()) {
+                    result.error("INVALID_PACKET", "Packet was null or empty", null)
+                    return
+                }
+                sendPacketToDevice(packet, result)
+            }
             else -> result.notImplemented()
         }
+    }
+
+    private val gattCallback = object : BluetoothGattCallback() {
+        override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {
+            if (newState == BluetoothProfile.STATE_CONNECTED) {
+                if (hasConnectPermission()) {
+                    try {
+                        gatt?.discoverServices()
+                    } catch (_: SecurityException) {}
+                }
+            } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                gattWriteChar = null
+                if (gatt == bluetoothGatt) {
+                    try { gatt?.close() } catch (_: Exception) {}
+                    bluetoothGatt = null
+                }
+            }
+        }
+
+        override fun onServicesDiscovered(gatt: BluetoothGatt?, status: Int) {
+            if (status == BluetoothGatt.GATT_SUCCESS && gatt != null) {
+                val service = gatt.getService(UUID_JIELI_SERVICE)
+                if (service != null) {
+                    gattWriteChar = service.getCharacteristic(UUID_JIELI_WRITE)
+                    val notifyChar = service.getCharacteristic(UUID_JIELI_NOTIFY)
+                    if (notifyChar != null && hasConnectPermission()) {
+                        try {
+                            gatt.setCharacteristicNotification(notifyChar, true)
+                            val cccd = notifyChar.getDescriptor(UUID_CCCD)
+                            if (cccd != null) {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    gatt.writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+                                } else {
+                                    @Suppress("DEPRECATION")
+                                    cccd.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                                    @Suppress("DEPRECATION")
+                                    gatt.writeDescriptor(cccd)
+                                }
+                            }
+                        } catch (_: SecurityException) {}
+                    }
+                }
+            }
+        }
+
+        @Suppress("DEPRECATION")
+        override fun onCharacteristicChanged(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
+            handleIncomingRcspData(characteristic.value)
+        }
+
+        override fun onCharacteristicChanged(
+            gatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+            value: ByteArray
+        ) {
+            handleIncomingRcspData(value)
+        }
+    }
+
+    private fun handleIncomingRcspData(data: ByteArray?) {
+        data ?: return
+        mainHandler.post {
+            try {
+                channel.invokeMethod("onRcspData", data)
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun ensureGattConnection(device: BluetoothDevice) {
+        if (!hasConnectPermission()) return
+        if (bluetoothGatt != null && activeDevice?.address == device.address && gattWriteChar != null) {
+            return
+        }
+        try {
+            bluetoothGatt?.close()
+            bluetoothGatt = null
+            gattWriteChar = null
+            activeDevice = device
+            bluetoothGatt = device.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun getPrimaryConnectedDevice(): BluetoothDevice? {
+        if (!hasConnectPermission()) return null
+        try {
+            val a2dpDevices = a2dpProfile?.connectedDevices ?: emptyList()
+            if (a2dpDevices.isNotEmpty()) return a2dpDevices.first()
+            val headsetDevices = headsetProfile?.connectedDevices ?: emptyList()
+            if (headsetDevices.isNotEmpty()) return headsetDevices.first()
+            val bonded = bluetoothAdapter?.bondedDevices ?: emptySet()
+            return bonded.firstOrNull { dev ->
+                val name = dev.name ?: ""
+                name.contains("airdopes", ignoreCase = true) || name.contains("boat", ignoreCase = true)
+            }
+        } catch (_: SecurityException) {}
+        return null
+    }
+
+    private fun sendPacketToDevice(packet: ByteArray, result: Result) {
+        val device = activeDevice ?: getPrimaryConnectedDevice()
+        if (device != null) {
+            ensureGattConnection(device)
+        }
+
+        var gattSent = false
+        if (hasConnectPermission() && bluetoothGatt != null && gattWriteChar != null) {
+            try {
+                val writeChar = gattWriteChar!!
+                writeChar.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+                gattSent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    bluetoothGatt!!.writeCharacteristic(writeChar, packet, BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE) == 0
+                } else {
+                    @Suppress("DEPRECATION")
+                    writeChar.value = packet
+                    @Suppress("DEPRECATION")
+                    bluetoothGatt!!.writeCharacteristic(writeChar)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        // Resilient dual delivery: Parallel SPP RFCOMM send
+        if (device != null && hasConnectPermission()) {
+            Thread {
+                try {
+                    val socket = device.createRfcommSocketToServiceRecord(UUID_JIELI_SPP)
+                    socket.connect()
+                    socket.outputStream.write(packet)
+                    socket.outputStream.flush()
+                    Thread.sleep(50)
+                    socket.close()
+                } catch (_: Exception) {}
+            }.start()
+        }
+
+        result.success(gattSent || device != null)
     }
 
     private fun notifyDeviceChanged() {
@@ -195,6 +357,9 @@ class BluetoothAudioPlugin(
                     val name = dev.name?.takeIf { it.isNotBlank() } ?: "Connected Audio Device"
                     val address = dev.address ?: ""
                     val battery = getBatteryLevel(dev)
+
+                    activeDevice = dev
+                    ensureGattConnection(dev)
 
                     return mapOf(
                         "isConnected" to true,

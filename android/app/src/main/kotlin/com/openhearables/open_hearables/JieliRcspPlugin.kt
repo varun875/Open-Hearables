@@ -47,11 +47,25 @@ class JieliRcspPlugin : MethodCallHandler {
 
     /**
      * Builds an authentic JieLi RCSP packet for toggling Low Latency (Beast Mode)
-     * Format: [0xBA, 0xDC] [Length: 2 bytes] [Cmd: 0x0C] [Payload: 0x01/0x00] [CRC16: 2 bytes]
+     * Format per decompiled TwsOpImpl / ParseHelper / CommandBuilder:
+     * Header: [0xFE, 0xDC, 0xBA]
+     * Type/Flags: 0xC0 (Command with Response)
+     * OpCode: 0xC0 (CMD_SET_ADV_INFO)
+     * Length: [0x00, 0x04]
+     * Seq: 0x01
+     * LTV: [0x02, 0x05 (ADV_TYPE_WORK_MODE), 0x01/0x00]
+     * Tail: 0xEF
      */
     fun buildLowLatencyCommand(enable: Boolean): ByteArray {
-        val payload = byteArrayOf(if (enable) 0x01 else 0x00)
-        return packFrame(CMD_SET_LOW_LATENCY, payload)
+        val modeVal: Byte = if (enable) 0x01 else 0x00
+        return byteArrayOf(
+            0xFE.toByte(), 0xDC.toByte(), 0xBA.toByte(),
+            0xC0.toByte(), 0xC0.toByte(),
+            0x00, 0x04,
+            0x01,
+            0x02, 0x05, modeVal,
+            0xEF.toByte()
+        )
     }
 
     /**
