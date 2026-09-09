@@ -8,6 +8,7 @@ class MainActivity : FlutterActivity() {
 
     private var equalizerPlugin: SystemEqualizerPlugin? = null
     private var rcspPlugin: JieliRcspPlugin? = null
+    private var bluetoothAudioPlugin: BluetoothAudioPlugin? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -19,10 +20,13 @@ class MainActivity : FlutterActivity() {
         rcspPlugin = JieliRcspPlugin()
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, JieliRcspPlugin.CHANNEL_NAME)
             .setMethodCallHandler(rcspPlugin)
+
+        bluetoothAudioPlugin = BluetoothAudioPlugin(this, flutterEngine.dartExecutor.binaryMessenger)
     }
 
     override fun onDestroy() {
         equalizerPlugin?.release()
+        bluetoothAudioPlugin?.release()
         super.onDestroy()
     }
 }

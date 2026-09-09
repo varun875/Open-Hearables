@@ -5,6 +5,7 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import '../models/device_state.dart';
 
 class BluetoothService extends ChangeNotifier {
+  static const MethodChannel _audioChannel = MethodChannel('com.openhearables.app/bluetooth_audio');
   static const MethodChannel _rcspChannel = MethodChannel('com.openhearables.app/rcsp');
 
   // Known Manufacturer IDs from decompiled SDKs:
@@ -22,7 +23,47 @@ class BluetoothService extends ChangeNotifier {
   bool get isScanning => _isScanning;
 
   BluetoothService() {
+    _initAudioChannel();
     _initBluetooth();
+    checkConnectedDevices();
+  }
+
+  void _initAudioChannel() {
+    _audioChannel.setMethodCallHandler((call) async {
+      if (call.method == 'onDeviceStateChanged') {
+        if (call.arguments is Map) {
+          final data = Map<String, dynamic>.from(call.arguments as Map);
+          _updateFromAudioDevice(data);
+        }
+      }
+    });
+  }
+
+  void _updateFromAudioDevice(Map<String, dynamic> data) {
+    final bool isConnected = data['isConnected'] as bool? ?? false;
+    if (isConnected) {
+      final String name = (data['name'] as String?)?.trim() ?? '';
+      final String address = (data['address'] as String?)?.trim() ?? '';
+      final int battery = data['batteryLevel'] as int? ?? -1;
+
+      final devName = name.isNotEmpty ? name : (_deviceState.name.isNotEmpty ? _deviceState.name : 'boAt Airdopes 311 Plus');
+      final devAddress = address.isNotEmpty ? address : _deviceState.macAddress;
+
+      _deviceState = _deviceState.copyWith(
+        name: devName,
+        macAddress: devAddress,
+        isConnected: true,
+        leftBattery: battery >= 0 ? battery : (_deviceState.leftBattery >= 0 ? _deviceState.leftBattery : -1),
+        rightBattery: battery >= 0 ? battery : (_deviceState.rightBattery >= 0 ? _deviceState.rightBattery : -1),
+      );
+      notifyListeners();
+    } else {
+      _deviceState = _deviceState.copyWith(
+        isConnected: false,
+        macAddress: 'Scanning...',
+      );
+      notifyListeners();
+    }
   }
 
   void _initBluetooth() {
@@ -98,6 +139,18 @@ class BluetoothService extends ChangeNotifier {
   }
 
   Future<void> checkConnectedDevices() async {
+    // 1. Check Native Android Bluetooth Audio / A2DP / HFP connection
+    try {
+      final result = await _audioChannel.invokeMethod<dynamic>('getConnectedAudioDevice');
+      if (result is Map) {
+        final data = Map<String, dynamic>.from(result);
+        _updateFromAudioDevice(data);
+      }
+    } catch (e) {
+      debugPrint('Native audio device check error: $e');
+    }
+
+    // 2. Check BLE GATT connected devices fallback
     try {
       final systemDevices = await FlutterBluePlus.systemDevices([]);
       for (final dev in systemDevices) {
@@ -108,7 +161,7 @@ class BluetoothService extends ChangeNotifier {
             name.contains('tws')) {
           _connectedDevice = dev;
           _deviceState = _deviceState.copyWith(
-            name: dev.platformName.isNotEmpty ? dev.platformName : 'boAt Airdopes 311 Plus',
+            name: dev.platformName.isNotEmpty ? dev.platformName : _deviceState.name,
             macAddress: dev.remoteId.str,
             isConnected: true,
           );
@@ -118,7 +171,7 @@ class BluetoothService extends ChangeNotifier {
         }
       }
 
-      if (systemDevices.isNotEmpty) {
+      if (systemDevices.isNotEmpty && !_deviceState.isConnected) {
         final dev = systemDevices.first;
         _connectedDevice = dev;
         _deviceState = _deviceState.copyWith(
