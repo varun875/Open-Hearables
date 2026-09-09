@@ -25,9 +25,18 @@ class DashboardScreen extends StatelessWidget {
         centerTitle: false,
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh connection & battery',
-            onPressed: () => bt.checkConnectedDevices(),
+            icon: bt.isScanning
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh),
+            tooltip: 'Scan BLE Beacons & Battery',
+            onPressed: () {
+              bt.checkConnectedDevices();
+              bt.startBeaconScanning();
+            },
           ),
           const SizedBox(width: 8),
         ],
@@ -90,7 +99,7 @@ class DashboardScreen extends StatelessWidget {
                                 Text(
                                   device.isConnected
                                       ? 'Connected • Audio & Controls'
-                                      : 'Disconnected • Ready to Pair',
+                                      : 'Disconnected • Scanning Beacons',
                                   style: textTheme.bodySmall?.copyWith(
                                     color: colorScheme.onSurfaceVariant,
                                     fontWeight: FontWeight.w500,
@@ -116,6 +125,7 @@ class DashboardScreen extends StatelessWidget {
                         label: 'Left Earbud',
                         shortLabel: 'Left',
                         percent: device.leftBattery,
+                        isCharging: device.isLeftCharging,
                         icon: Icons.earbuds,
                       ),
                       _buildBatteryTonal(
@@ -123,13 +133,15 @@ class DashboardScreen extends StatelessWidget {
                         label: 'Charging Case',
                         shortLabel: 'Case',
                         percent: device.caseBattery,
-                        icon: Icons.battery_charging_full,
+                        isCharging: device.isCaseCharging,
+                        icon: Icons.inventory_2_outlined,
                       ),
                       _buildBatteryTonal(
                         context,
                         label: 'Right Earbud',
                         shortLabel: 'Right',
                         percent: device.rightBattery,
+                        isCharging: device.isRightCharging,
                         icon: Icons.earbuds,
                       ),
                     ],
@@ -266,18 +278,21 @@ class DashboardScreen extends StatelessWidget {
     required String label,
     required String shortLabel,
     required int percent,
+    required bool isCharging,
     required IconData icon,
   }) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
 
-    final isLow = percent <= 20 && percent >= 0;
-    final progressColor = isLow ? colorScheme.error : colorScheme.primary;
+    final isLow = percent <= 20 && percent >= 0 && !isCharging;
+    final progressColor = isCharging
+        ? colorScheme.tertiary
+        : (isLow ? colorScheme.error : colorScheme.primary);
 
     return Semantics(
       label: '$label battery level',
-      value: '$percent percent',
+      value: '$percent percent${isCharging ? ", charging" : ""}',
       child: Column(
         children: [
           Stack(
@@ -294,9 +309,11 @@ class DashboardScreen extends StatelessWidget {
                 ),
               ),
               Icon(
-                icon,
+                isCharging ? Icons.bolt : icon,
                 size: 22,
-                color: isLow ? colorScheme.error : colorScheme.onSurface,
+                color: isCharging
+                    ? colorScheme.tertiary
+                    : (isLow ? colorScheme.error : colorScheme.onSurface),
               ),
             ],
           ),

@@ -5,15 +5,21 @@ class DeviceState {
   final int leftBattery;
   final int rightBattery;
   final int caseBattery;
+  final bool isLeftCharging;
+  final bool isRightCharging;
+  final bool isCaseCharging;
   final bool isBeastModeActive;
 
   const DeviceState({
     this.name = 'boAt Airdopes 311 Plus',
-    this.macAddress = 'Disconnected',
+    this.macAddress = 'Scanning...',
     this.isConnected = false,
     this.leftBattery = 85,
     this.rightBattery = 85,
     this.caseBattery = 90,
+    this.isLeftCharging = false,
+    this.isRightCharging = false,
+    this.isCaseCharging = false,
     this.isBeastModeActive = false,
   });
 
@@ -24,6 +30,9 @@ class DeviceState {
     int? leftBattery,
     int? rightBattery,
     int? caseBattery,
+    bool? isLeftCharging,
+    bool? isRightCharging,
+    bool? isCaseCharging,
     bool? isBeastModeActive,
   }) {
     return DeviceState(
@@ -33,6 +42,9 @@ class DeviceState {
       leftBattery: leftBattery ?? this.leftBattery,
       rightBattery: rightBattery ?? this.rightBattery,
       caseBattery: caseBattery ?? this.caseBattery,
+      isLeftCharging: isLeftCharging ?? this.isLeftCharging,
+      isRightCharging: isRightCharging ?? this.isRightCharging,
+      isCaseCharging: isCaseCharging ?? this.isCaseCharging,
       isBeastModeActive: isBeastModeActive ?? this.isBeastModeActive,
     );
   }
