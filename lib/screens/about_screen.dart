@@ -20,6 +20,40 @@ class AboutScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           children: [
+            // 0. Hero App Branding Header
+            Center(
+              child: Column(
+                children: [
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(22),
+                    child: Image.asset(
+                      'assets/icon/app_logo.png',
+                      width: 80,
+                      height: 80,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Open Hearables',
+                    style: textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Version 1.0.1 • Open Source Audio Control',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+              ),
+            ),
+
             // 1. Privacy Banner (Tonal Container)
             Container(
               decoration: BoxDecoration(
