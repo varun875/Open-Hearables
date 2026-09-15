@@ -6,6 +6,11 @@ import '../services/equalizer_service.dart';
 class EqualizerScreen extends StatelessWidget {
   const EqualizerScreen({super.key});
 
+  /// Minimum touch target width for a band column. Ten bands exceed a phone's
+  /// width at this size, so the matrix scrolls horizontally rather than
+  /// shrinking the targets below the accessibility minimum.
+  static const double _bandColumnWidth = 48;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -89,6 +94,19 @@ class EqualizerScreen extends StatelessWidget {
                         ),
                       );
                     }),
+                    // Manually edited curve
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: FilterChip(
+                        avatar: const Icon(Icons.tune, size: 16),
+                        label: const Text(EqualizerService.customPresetName),
+                        selected: eq.currentPreset == EqualizerService.customPresetName,
+                        showCheckmark: eq.currentPreset == EqualizerService.customPresetName,
+                        onSelected: eq.isEnabled
+                            ? (_) => eq.applyPreset(EqualizerService.customPresetName)
+                            : null,
+                      ),
+                    ),
                     // User Custom Presets
                     ...eq.customPresets.keys.map((p) {
                       final isSelected = eq.currentPreset == p;
@@ -155,12 +173,16 @@ class EqualizerScreen extends StatelessWidget {
                           value: eq.bassBoost,
                           min: 0.0,
                           max: 1.0,
-                          onChanged: eq.isEnabled ? (v) => eq.setBassBoost(v) : null,
+                          onChanged: eq.isEnabled && eq.bassBoostSupported
+                              ? (v) => eq.setBassBoost(v)
+                              : null,
                         ),
                       ),
                     ),
                     Text(
-                      '${(eq.bassBoost * 100).toInt()}%',
+                      eq.bassBoostSupported
+                          ? '${(eq.bassBoost * 100).toInt()}%'
+                          : 'N/A',
                       style: textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
                     ),
                   ],
@@ -172,16 +194,16 @@ class EqualizerScreen extends StatelessWidget {
 
             // 10-Band Sliders Matrix
             Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Opacity(
-                  opacity: eq.isEnabled ? 1.0 : 0.4,
+              child: Opacity(
+                opacity: eq.isEnabled ? 1.0 : 0.4,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: List.generate(eq.bands.length, (i) {
-                      final band = eq.bands[i];
-                      return _buildBandSlider(context, eq, band, i);
-                    }),
+                    children: List.generate(
+                      eq.bands.length,
+                      (i) => _buildBandSlider(context, eq, eq.bands[i], i),
+                    ),
                   ),
                 ),
               ),
@@ -199,29 +221,27 @@ class EqualizerScreen extends StatelessWidget {
     EqBand band,
     int index,
   ) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final textTheme = theme.textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
     return Semantics(
       label: '${band.formattedFreq} frequency band',
       value: '${band.levelDb.toStringAsFixed(1)} dB',
-      child: Column(
-        children: [
-          // Current dB readout
-          Text(
-            '${band.levelDb > 0 ? "+" : ""}${band.levelDb.toStringAsFixed(1)}',
-            style: textTheme.labelSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: band.levelDb != 0
-                  ? colorScheme.primary
-                  : colorScheme.onSurfaceVariant,
+      child: SizedBox(
+        width: _bandColumnWidth,
+        child: Column(
+          children: [
+            // Current dB readout
+            Text(
+              '${band.levelDb > 0 ? "+" : ""}${band.levelDb.toStringAsFixed(1)}',
+              style: textTheme.labelSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: band.levelDb != 0
+                    ? colorScheme.primary
+                    : colorScheme.onSurfaceVariant,
+              ),
             ),
-          ),
-          // Vertical Slider with min 48dp touch target width
-          Expanded(
-            child: SizedBox(
-              width: 32, // Touch target column
+            Expanded(
               child: RotatedBox(
                 quarterTurns: 3,
                 child: SliderTheme(
@@ -231,31 +251,38 @@ class EqualizerScreen extends StatelessWidget {
                     overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
                   ),
                   child: Slider(
-                    value: band.levelDb,
-                    min: -12.0,
-                    max: 12.0,
-                    onChanged: eq.isEnabled ? (val) => eq.setBandLevel(index, val) : null,
+                    value: band.levelDb.clamp(eq.minLevelDb, eq.maxLevelDb),
+                    min: eq.minLevelDb,
+                    max: eq.maxLevelDb,
+                    onChanged:
+                        eq.isEnabled ? (val) => eq.setBandLevel(index, val) : null,
                   ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 4),
-          // Frequency Label
-          Text(
-            band.formattedFreq,
-            style: textTheme.labelSmall?.copyWith(
-              fontWeight: FontWeight.w600,
-              color: colorScheme.onSurface,
+            const SizedBox(height: 4),
+            // Frequency Label
+            Text(
+              band.formattedFreq,
+              style: textTheme.labelSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: colorScheme.onSurface,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   void _showSaveDialog(BuildContext context, EqualizerService eq) {
-    final controller = TextEditingController(text: eq.currentPreset == 'Custom' ? '' : eq.currentPreset);
+    final current = eq.currentPreset;
+    final controller = TextEditingController(
+      text: current == EqualizerService.customPresetName ||
+              eq.customPresets.containsKey(current)
+          ? ''
+          : current,
+    );
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(

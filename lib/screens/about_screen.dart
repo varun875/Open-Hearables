@@ -1,7 +1,33 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
-class AboutScreen extends StatelessWidget {
+class AboutScreen extends StatefulWidget {
   const AboutScreen({super.key});
+
+  @override
+  State<AboutScreen> createState() => _AboutScreenState();
+}
+
+class _AboutScreenState extends State<AboutScreen> {
+  String? _versionLabel;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (!mounted) return;
+      setState(() {
+        _versionLabel = 'Version ${info.version} (build ${info.buildNumber})';
+      });
+    } catch (_) {
+      // The version line is omitted when the platform channel is unavailable.
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,9 +68,18 @@ class AboutScreen extends StatelessWidget {
                       color: colorScheme.onSurface,
                     ),
                   ),
+                  if (_versionLabel != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      _versionLabel!,
+                      style: textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 4),
                   Text(
-                    'Version 1.0.1 • Open Source Audio Control',
+                    'Open Source Audio Control',
                     style: textTheme.bodySmall?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),
@@ -169,10 +204,11 @@ class AboutScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    '• Protocol: Clean-room JieLi RCSP (0xBA, 0xDC) frame parsing\n'
+                    '• Protocol: Clean-room JieLi RCSP (0xFE, 0xDC, 0xBA) low-latency frames\n'
                     '• Audio DSP: Native android.media.audiofx.Equalizer Session 0\n'
                     '• Telemetry: Completely severed; no background pings\n'
-                    '• Battery: Native Bluetooth SIG GATT Service (UUID 0x180F)\n'
+                    '• Battery: Vendor BLE beacons (0x05D6 / 0x0642) with GATT (0x180F) fallback\n'
+                    '• Platform: Android only (API 26+)\n'
                     '• License: MIT Open-Source (Community Edition)',
                     style: textTheme.bodySmall?.copyWith(
                       color: colorScheme.onSurfaceVariant,

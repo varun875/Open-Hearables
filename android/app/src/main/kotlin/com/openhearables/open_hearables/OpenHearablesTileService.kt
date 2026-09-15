@@ -75,13 +75,7 @@ class OpenHearablesTileService : TileService() {
     private fun dispatchBeastModePacket(enabled: Boolean) {
         if (!hasConnectPermission()) return
 
-        // Authentic Jieli 12-byte SetADVInfo command
-        val modeVal = if (enabled) 0x01.toByte() else 0x00.toByte()
-        val packet = byteArrayOf(
-            0xFE.toByte(), 0xDC.toByte(), 0xBA.toByte(), 0xC0.toByte(),
-            0xC0.toByte(), 0x00.toByte(), 0x04.toByte(), 0x01.toByte(),
-            0x02.toByte(), 0x05.toByte(), modeVal, 0xEF.toByte()
-        )
+        val packet = RcspFrame.lowLatencyCommand(enabled)
 
         val btManager = getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
         val btAdapter = btManager?.adapter ?: BluetoothAdapter.getDefaultAdapter() ?: return

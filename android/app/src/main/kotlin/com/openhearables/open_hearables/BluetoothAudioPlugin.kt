@@ -37,6 +37,18 @@ class BluetoothAudioPlugin(
     companion object {
         const val CHANNEL_NAME = "com.openhearables.app/bluetooth_audio"
         private const val EXTRA_BATTERY_LEVEL = "android.bluetooth.device.extra.BATTERY_LEVEL"
+
+        /**
+         * Name fragments identifying a likely TWS / audio device. Deliberately
+         * broad: vendor branding across the JieLi/Bluetrum OEM ecosystem varies
+         * wildly, so matching is kept to one shared, case-insensitive list.
+         */
+        private val TWS_NAME_HINTS = listOf(
+            "airdopes", "boat", "earbud", "tws", "buds", "airpods", "neckband",
+            "jbl", "noise", "boult", "mivi", "oneplus", "realme", "redmi",
+            "oppo", "jieli", "bluetrum"
+        )
+
         val UUID_JIELI_SERVICE: UUID = UUID.fromString("0000ae00-0000-1000-8000-00805f9b34fb")
         val UUID_JIELI_WRITE: UUID = UUID.fromString("0000ae01-0000-1000-8000-00805f9b34fb")
         val UUID_JIELI_NOTIFY: UUID = UUID.fromString("0000ae02-0000-1000-8000-00805f9b34fb")
@@ -106,6 +118,16 @@ class BluetoothAudioPlugin(
         }
     }
 
+    private fun looksLikeTws(device: BluetoothDevice): Boolean {
+        val name = try {
+            device.name ?: ""
+        } catch (_: SecurityException) {
+            ""
+        }
+        val lowered = name.lowercase()
+        return TWS_NAME_HINTS.any { lowered.contains(it) }
+    }
+
     private fun registerReceiver() {
         if (isReceiverRegistered) return
         val filter = IntentFilter().apply {
@@ -154,6 +176,11 @@ class BluetoothAudioPlugin(
 
     override fun onMethodCall(call: MethodCall, result: Result) {
         when (call.method) {
+            "getPlatformInfo" -> {
+                // Lets Dart decide which runtime permissions apply, since
+                // neverForLocation only lifts the location requirement on API 31+.
+                result.success(mapOf("apiLevel" to Build.VERSION.SDK_INT))
+            }
             "getConnectedAudioDevice" -> {
                 try {
                     val info = getConnectedAudioDeviceInfo()
@@ -264,10 +291,7 @@ class BluetoothAudioPlugin(
             val headsetDevices = headsetProfile?.connectedDevices ?: emptyList()
             if (headsetDevices.isNotEmpty()) return headsetDevices.first()
             val bonded = bluetoothAdapter?.bondedDevices ?: emptySet()
-            return bonded.firstOrNull { dev ->
-                val name = dev.name ?: ""
-                name.contains("airdopes", ignoreCase = true) || name.contains("boat", ignoreCase = true)
-            }
+            return bonded.firstOrNull { looksLikeTws(it) }
         } catch (_: SecurityException) {}
         return null
     }
@@ -405,20 +429,17 @@ class BluetoothAudioPlugin(
             try {
                 val bonded = bluetoothAdapter.bondedDevices ?: emptySet()
                 for (dev in bonded) {
-                    val name = dev.name ?: ""
-                    if (name.contains("airdopes", ignoreCase = true) ||
-                        name.contains("boat", ignoreCase = true)
-                    ) {
-                        val battery = getBatteryLevel(dev)
-                        if (battery >= 0) {
-                            return mapOf(
-                                "isConnected" to true,
-                                "name" to name,
-                                "address" to dev.address,
-                                "batteryLevel" to battery
-                            )
-                        }
-                    }
+                    if (!looksLikeTws(dev)) continue
+
+                    val battery = getBatteryLevel(dev)
+                    if (battery < 0) continue
+
+                    return mapOf(
+                        "isConnected" to true,
+                        "name" to (dev.name ?: "Connected Audio Device"),
+                        "address" to dev.address,
+                        "batteryLevel" to battery
+                    )
                 }
             } catch (_: SecurityException) {}
         }

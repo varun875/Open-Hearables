@@ -1,5 +1,5 @@
 name: open_hearables
-description: "A new Flutter project."
+description: "Ultra-lightweight, zero-tracking, offline companion app for boAt / JieLi / Bluetrum Bluetooth earbuds."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.1+2003
+version: 1.0.2+2004
 
 environment:
   sdk: ^3.12.2
@@ -34,9 +34,16 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
-  flutter_blue_plus: ^1.35.4
+  # Deliberately held below 2.x: flutter_blue_plus 2.x is no longer MIT/BSD. It
+  # requires a paid commercial license for for-profit use and sends build-time
+  # license telemetry, which conflicts with this project's zero-telemetry promise.
+  flutter_blue_plus: ">=1.36.8 <2.0.0"
   shared_preferences: ^2.3.2
   provider: ^6.1.2
+  # Also held below 13.x: permission_handler_android 14.x needs compileSdk 37,
+  # which the pinned Android Gradle Plugin (9.0.1) does not support.
+  permission_handler: ">=12.0.0 <13.0.0"
+  package_info_plus: ^10.2.1
 
 dev_dependencies:
   flutter_test:

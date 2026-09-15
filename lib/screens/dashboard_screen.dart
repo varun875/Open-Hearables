@@ -33,10 +33,7 @@ class DashboardScreen extends StatelessWidget {
                   )
                 : const Icon(Icons.refresh),
             tooltip: 'Scan BLE Beacons & Battery',
-            onPressed: () {
-              bt.checkConnectedDevices();
-              bt.startBeaconScanning();
-            },
+            onPressed: bt.isScanning ? null : () => bt.refresh(),
           ),
           const SizedBox(width: 8),
         ],
@@ -45,6 +42,12 @@ class DashboardScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           children: [
+            if (bt.errorMessage != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: _buildErrorCard(context, bt),
+              ),
+
             // 1. Hero Device Status Surface
             Container(
               decoration: BoxDecoration(
@@ -96,13 +99,15 @@ class DashboardScreen extends StatelessWidget {
                                       : colorScheme.error,
                                 ),
                                 const SizedBox(width: 6),
-                                Text(
-                                  device.isConnected
-                                      ? 'Connected • Audio & Controls'
-                                      : 'Disconnected • Scanning Beacons',
-                                  style: textTheme.bodySmall?.copyWith(
-                                    color: colorScheme.onSurfaceVariant,
-                                    fontWeight: FontWeight.w500,
+                                Expanded(
+                                  child: Text(
+                                    device.isConnected
+                                        ? 'Connected • Audio & Controls'
+                                        : 'Disconnected • Scanning Beacons',
+                                    style: textTheme.bodySmall?.copyWith(
+                                      color: colorScheme.onSurfaceVariant,
+                                      fontWeight: FontWeight.w500,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -153,11 +158,14 @@ class DashboardScreen extends StatelessWidget {
             const SizedBox(height: 16),
 
             // 2. Hardware Beast Mode Switch Container
-            Container(
-              decoration: BoxDecoration(
-                color: colorScheme.surfaceContainer,
+            // Material rather than a decorated Container: ListTile paints its
+            // background and ink splashes on the nearest Material ancestor.
+            Material(
+              color: colorScheme.surfaceContainer,
+              clipBehavior: Clip.antiAlias,
+              shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: colorScheme.outlineVariant, width: 1),
+                side: BorderSide(color: colorScheme.outlineVariant),
               ),
               child: SwitchListTile(
                 contentPadding: const EdgeInsets.symmetric(
@@ -217,11 +225,13 @@ class DashboardScreen extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'Active Sound Profile',
-                        style: textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: colorScheme.onSurface,
+                      Expanded(
+                        child: Text(
+                          'Active Sound Profile',
+                          style: textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.onSurface,
+                          ),
                         ),
                       ),
                       Container(
@@ -252,9 +262,18 @@ class DashboardScreen extends StatelessWidget {
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: EqualizerService.presets.keys.map((preset) {
+                    children: [
+                      ...EqualizerService.presets.keys,
+                      ...eq.customPresets.keys,
+                      EqualizerService.customPresetName,
+                    ].map((preset) {
                       final isSelected = eq.currentPreset == preset;
+                      final isUserPreset =
+                          eq.customPresets.containsKey(preset);
                       return FilterChip(
+                        avatar: isUserPreset
+                            ? const Icon(Icons.tune, size: 16)
+                            : null,
                         label: Text(preset),
                         selected: isSelected,
                         showCheckmark: isSelected,
@@ -269,6 +288,59 @@ class DashboardScreen extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildErrorCard(BuildContext context, BluetoothService bt) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: colorScheme.errorContainer,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.error_outline,
+                color: colorScheme.onErrorContainer,
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  bt.errorMessage!,
+                  style: textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onErrorContainer,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              if (bt.permissionsBlocked)
+                TextButton(
+                  onPressed: bt.openSystemSettings,
+                  child: const Text('Open Settings'),
+                ),
+              TextButton(
+                onPressed: bt.refresh,
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

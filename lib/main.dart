@@ -11,8 +11,8 @@ void main() {
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => BluetoothService()),
-        ChangeNotifierProvider(create: (_) => EqualizerService()),
+        ChangeNotifierProvider(create: (_) => BluetoothService()..init()),
+        ChangeNotifierProvider(create: (_) => EqualizerService()..init()),
       ],
       child: const OpenHearablesApp(),
     ),
