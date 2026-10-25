@@ -22,6 +22,7 @@ import android.media.AudioManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
@@ -71,6 +72,11 @@ class BluetoothAudioPlugin(
     private var gattWriteChar: BluetoothGattCharacteristic? = null
     private var activeDevice: BluetoothDevice? = null
 
+    private var sppSocket: BluetoothSocket? = null
+    private var sppDeviceAddress: String? = null
+    private var sppReadThread: Thread? = null
+    private val sppLock = Any()
+
     private val bluetoothReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             intent ?: return
@@ -78,9 +84,14 @@ class BluetoothAudioPlugin(
                 BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED,
                 BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED,
                 BluetoothDevice.ACTION_ACL_CONNECTED,
-                BluetoothDevice.ACTION_ACL_DISCONNECTED,
                 BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED,
                 BluetoothAdapter.ACTION_STATE_CHANGED -> {
+                    notifyDeviceChanged()
+                }
+                BluetoothDevice.ACTION_ACL_DISCONNECTED -> {
+                    synchronized(sppLock) {
+                        closeSppInternal()
+                    }
                     notifyDeviceChanged()
                 }
                 "android.bluetooth.device.action.BATTERY_LEVEL_CHANGED" -> {
@@ -322,19 +333,84 @@ class BluetoothAudioPlugin(
 
         // Resilient dual delivery: Parallel SPP RFCOMM send
         if (device != null && hasConnectPermission()) {
-            Thread {
-                try {
-                    val socket = device.createRfcommSocketToServiceRecord(UUID_JIELI_SPP)
-                    socket.connect()
-                    socket.outputStream.write(packet)
-                    socket.outputStream.flush()
-                    Thread.sleep(50)
-                    socket.close()
-                } catch (_: Exception) {}
-            }.start()
+            sendSppPacket(device, packet)
         }
 
         result.success(gattSent || device != null)
+    }
+
+    private fun sendSppPacket(device: BluetoothDevice, packet: ByteArray) {
+        Thread({
+            synchronized(sppLock) {
+                try {
+                    var socket = sppSocket
+                    if (socket == null || !socket.isConnected || sppDeviceAddress != device.address) {
+                        Log.i("OpenHearables", "Opening SPP RFCOMM to ${device.address}...")
+                        closeSppInternal()
+                        val newSocket = device.createRfcommSocketToServiceRecord(UUID_JIELI_SPP)
+                        newSocket.connect()
+                        sppSocket = newSocket
+                        sppDeviceAddress = device.address
+                        Log.i("OpenHearables", "SPP RFCOMM connected to ${device.address}")
+
+                        sppReadThread = Thread({
+                            val buffer = ByteArray(512)
+                            try {
+                                val input = newSocket.inputStream
+                                while (!Thread.currentThread().isInterrupted && newSocket.isConnected) {
+                                    val read = input.read(buffer)
+                                    if (read == -1) break
+                                    val hex = buffer.take(read).joinToString(" ") { "%02X".format(it) }
+                                    Log.i("OpenHearables", "SPP RX: $hex")
+                                }
+                            } catch (re: Exception) {
+                                Log.d("OpenHearables", "SPP reader loop ended: ${re.message}")
+                            } finally {
+                                synchronized(sppLock) {
+                                    if (sppSocket == newSocket) {
+                                        closeSppInternal()
+                                    }
+                                }
+                            }
+                        }, "OpenHearables-SPP-Reader").apply {
+                            isDaemon = true
+                            start()
+                        }
+                        socket = newSocket
+                    }
+                    val hexTx = packet.joinToString(" ") { "%02X".format(it) }
+                    Log.i("OpenHearables", "SPP TX: $hexTx")
+                    socket.outputStream.write(packet)
+                    socket.outputStream.flush()
+                    Log.i("OpenHearables", "SPP TX flushed successfully")
+                } catch (e: Exception) {
+                    Log.e("OpenHearables", "SPP send error: ${e.message}, retrying...", e)
+                    closeSppInternal()
+                    try {
+                        val retrySocket = device.createRfcommSocketToServiceRecord(UUID_JIELI_SPP)
+                        retrySocket.connect()
+                        val hexTx = packet.joinToString(" ") { "%02X".format(it) }
+                        Log.i("OpenHearables", "SPP Retry TX: $hexTx")
+                        retrySocket.outputStream.write(packet)
+                        retrySocket.outputStream.flush()
+                        sppSocket = retrySocket
+                        sppDeviceAddress = device.address
+                        Log.i("OpenHearables", "SPP Retry flushed successfully")
+                    } catch (ex: Exception) {
+                        Log.e("OpenHearables", "SPP retry failed: ${ex.message}", ex)
+                        closeSppInternal()
+                    }
+                }
+            }
+        }, "OpenHearables-SPP-Send").start()
+    }
+
+    private fun closeSppInternal() {
+        try { sppSocket?.close() } catch (_: Exception) {}
+        sppSocket = null
+        sppDeviceAddress = null
+        try { sppReadThread?.interrupt() } catch (_: Exception) {}
+        sppReadThread = null
     }
 
     private fun notifyDeviceChanged() {
@@ -453,6 +529,7 @@ class BluetoothAudioPlugin(
     }
 
     fun release() {
+        closeSppInternal()
         if (isReceiverRegistered) {
             try {
                 context.unregisterReceiver(bluetoothReceiver)

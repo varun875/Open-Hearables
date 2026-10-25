@@ -14,7 +14,7 @@ class RcspFrameTest {
             0x00, 0x04,                                  // payload length, big-endian
             0x01,                                        // sequence id
             0x02, 0x05,                                  // LTV length + ADV_TYPE_WORK_MODE
-            0x01,                                        // low latency ON
+            0x02,                                        // low latency ON (gaming mode)
             0xEF.toByte()                                // terminator
         )
 

@@ -14,7 +14,7 @@ package com.openhearables.open_hearables
  * [0xC0, 0xC0]         type/flags (command + response) and opcode (SET_ADV_INFO)
  * [0x00, 0x04]         payload length, big-endian
  * [0x01]               sequence id
- * [0x02, 0x05, mode]   LTV: length, ADV_TYPE_WORK_MODE, 0x01 on / 0x00 off
+ * [0x02, 0x05, mode]   LTV: length, ADV_TYPE_WORK_MODE, 0x02 gaming/beast / 0x01 normal
  * [0xEF]               terminator
  * ```
  *
@@ -34,8 +34,8 @@ object RcspFrame {
     const val SEQUENCE_ID: Byte = 0x01
     const val LTV_LENGTH: Byte = 0x02
     const val ADV_TYPE_WORK_MODE: Byte = 0x05
-    const val LOW_LATENCY_ON: Byte = 0x01
-    const val LOW_LATENCY_OFF: Byte = 0x00
+    const val LOW_LATENCY_ON: Byte = 0x02
+    const val LOW_LATENCY_OFF: Byte = 0x01
 
     /** Sequence id plus the LTV triple. */
     const val PAYLOAD_LENGTH: Int = 4

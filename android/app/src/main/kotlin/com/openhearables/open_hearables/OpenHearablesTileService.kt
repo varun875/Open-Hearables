@@ -95,7 +95,7 @@ class OpenHearablesTileService : TileService() {
                     socket.connect()
                     socket.outputStream.write(packet)
                     socket.outputStream.flush()
-                    Thread.sleep(50)
+                    Thread.sleep(1000)
                     socket.close()
                 } catch (_: Exception) {}
             }.start()
